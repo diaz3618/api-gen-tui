@@ -1,0 +1,38 @@
+# vk — Local Vault API Key Manager
+# docker compose up -d  (run from the docker/ directory, or use Makefile targets)
+
+services:
+  vault:
+    image: hashicorp/vault:1.21.0
+    container_name: vk-vault
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${VAULT_PORT:-8200}:8200"
+    environment:
+      # Vault reads VAULT_LOCAL_CONFIG for inline HCL config.
+      # We use a mounted config file instead — this env var is intentionally empty.
+      VAULT_LOCAL_CONFIG: ""
+    cap_add:
+      - IPC_LOCK
+    command: vault server -config=/vault/config/vault.hcl
+    volumes:
+      - vault_data:/vault/file
+      - ./vault-config.hcl:/vault/config/vault.hcl:ro
+    healthcheck:
+      # vault status returns exit code 2 when sealed (not unhealthy — just sealed)
+      # We only care that the HTTP listener is up — status 200, 429, 472, 473, 501, or 503 all mean "up"
+      # Exit code 0 = initialized + unsealed, 2 = sealed, 1 = error
+      # Use wget (available in vault image) to check health endpoint
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    env_file:
+      - path: ../.env
+        required: false
+
+volumes:
+  vault_data:
+    name: vk-vault-data
+    driver: local
