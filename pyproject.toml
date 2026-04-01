@@ -1,0 +1,37 @@
+[project]
+name = "vk"
+version = "0.1.0"
+description = "Local Vault API key manager"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.15.0",
+    "rich>=14.0.0",
+    "hvac>=2.3.0",
+    "python-dotenv>=1.0.0",
+    "pyperclip>=1.8.0",
+    "python-ulid>=3.0.0",
+    "prompt-toolkit>=3.0.0",
+    "python-on-whales>=0.72.0",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+vk = "vk.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

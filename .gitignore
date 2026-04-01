@@ -34,3 +34,15 @@ go.work.sum
 memory-bank
 .mcprules*
 api-gen-tui
+
+# Python / vk
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+uv.lock
