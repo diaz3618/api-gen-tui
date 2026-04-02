@@ -106,3 +106,28 @@ class TestCommandRegistration:
         """'policy' must be a valid top-level vk command (registered in same __init__ change)."""
         result = runner.invoke(app, ["policy", "--help"])
         assert "No such command" not in (result.output or "")
+
+
+class TestDispatchBroadExceptionGuard:
+    """FINDING-2 fix: _dispatch() must catch unexpected exceptions and continue the REPL loop."""
+
+    def test_dispatch_unexpected_exception_returns_true(self):
+        """An unexpected exception (e.g. hvac.Forbidden) must NOT crash the REPL loop."""
+        from unittest.mock import patch, MagicMock
+        import hvac.exceptions
+
+        cmd = _get_cmd()
+        # Patch the inner cmd.main to raise hvac.Forbidden (simulates FINDING-2 scenario)
+        with patch.object(cmd, "main", side_effect=hvac.exceptions.Forbidden("denied")):
+            result = _dispatch(cmd, ["store", "kv/x", "val"])
+        # REPL loop must continue (returns True), not crash
+        assert result is True
+
+    def test_dispatch_connection_error_returns_true(self):
+        """A requests.ConnectionError must NOT crash the REPL loop."""
+        import requests.exceptions
+
+        cmd = _get_cmd()
+        with patch.object(cmd, "main", side_effect=requests.exceptions.ConnectionError("down")):
+            result = _dispatch(cmd, ["get", "kv/x"])
+        assert result is True

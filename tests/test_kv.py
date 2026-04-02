@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hvac.exceptions
 import pytest
+import requests.exceptions
 from unittest.mock import MagicMock, call
 
 from vk.config import Settings
-from vk.errors import VaultInvalidPath
+from vk.errors import VaultForbidden, VaultInvalidPath, VaultNotRunning
 from vk.vault.client import VaultClient
 from vk.vault.kv import KVStore
 
@@ -212,3 +213,67 @@ def test_delete_permanent_falls_back_to_version_1_on_error(kv_store):
         versions=[1],
         mount_point="kv",
     )
+
+
+# ---------------------------------------------------------------------------
+# FINDING-1: Transport errors map to VaultNotRunning (FINDING-1 fix)
+# ---------------------------------------------------------------------------
+
+
+def test_put_connection_error_raises_vault_not_running(kv_store):
+    kv, mock_hvac = kv_store
+    mock_hvac.secrets.kv.v2.create_or_update_secret.side_effect = (
+        requests.exceptions.ConnectionError("refused")
+    )
+    with pytest.raises(VaultNotRunning):
+        kv.put("kv/api-keys/stripe/prod", "val")
+
+
+def test_get_connection_error_raises_vault_not_running(kv_store):
+    kv, mock_hvac = kv_store
+    mock_hvac.secrets.kv.v2.read_secret_version.side_effect = requests.exceptions.ConnectionError(
+        "refused"
+    )
+    with pytest.raises(VaultNotRunning):
+        kv.get("kv/api-keys/stripe/prod")
+
+
+def test_list_connection_error_raises_vault_not_running(kv_store):
+    kv, mock_hvac = kv_store
+    mock_hvac.secrets.kv.v2.list_secrets.side_effect = requests.exceptions.ConnectionError(
+        "refused"
+    )
+    with pytest.raises(VaultNotRunning):
+        kv.list("kv/api-keys")
+
+
+def test_delete_connection_error_raises_vault_not_running(kv_store):
+    kv, mock_hvac = kv_store
+    mock_hvac.secrets.kv.v2.delete_latest_version_of_secret.side_effect = (
+        requests.exceptions.ConnectionError("refused")
+    )
+    with pytest.raises(VaultNotRunning):
+        kv.delete("kv/api-keys/stripe/prod")
+
+
+# ---------------------------------------------------------------------------
+# FINDING-2: hvac.Forbidden maps to VaultForbidden (FINDING-2 fix)
+# ---------------------------------------------------------------------------
+
+
+def test_put_forbidden_raises_vault_forbidden(kv_store):
+    kv, mock_hvac = kv_store
+    mock_hvac.secrets.kv.v2.create_or_update_secret.side_effect = hvac.exceptions.Forbidden(
+        "permission denied"
+    )
+    with pytest.raises(VaultForbidden):
+        kv.put("kv/api-keys/stripe/prod", "val")
+
+
+def test_get_forbidden_raises_vault_forbidden(kv_store):
+    kv, mock_hvac = kv_store
+    mock_hvac.secrets.kv.v2.read_secret_version.side_effect = hvac.exceptions.Forbidden(
+        "permission denied"
+    )
+    with pytest.raises(VaultForbidden):
+        kv.get("kv/api-keys/stripe/prod")

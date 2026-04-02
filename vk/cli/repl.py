@@ -34,6 +34,7 @@ def _dispatch(cmd, args: list[str]) -> bool:
 
     Returns True to continue the REPL loop, False to exit.
     Catches click.UsageError and SystemExit — never lets them escape (D-02).
+    Broad except Exception guard ensures hvac/transport errors don't crash the loop (UX-01).
     """
     if args[0] in ("exit", "quit"):
         return False  # D-04: exit/quit keywords terminate the REPL
@@ -45,6 +46,10 @@ def _dispatch(cmd, args: list[str]) -> bool:
         err_console.print(f"[red]Error:[/red] {e.format_message()}")
     except SystemExit:
         pass  # Safety guard — standalone_mode=False should not raise this, but just in case
+    except Exception as e:
+        # Broad guard: hvac/transport exceptions from storage commands must not crash the REPL
+        # (UX-01: REPL loop must continue after any command error)
+        err_console.print(f"[red]Error:[/red] {e}")
     return True
 
 

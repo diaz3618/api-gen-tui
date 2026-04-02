@@ -5,13 +5,15 @@ All KV operations use client.raw.secrets.kv.v2.* exclusively.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
 import hvac.exceptions
+import requests.exceptions
 
 from vk.config import Settings
-from vk.errors import VaultInvalidPath
+from vk.errors import VaultForbidden, VaultInvalidPath, VaultNotRunning
 from vk.vault.client import VaultClient
 from vk.vault.paths import canonicalize_path
 
@@ -26,6 +28,28 @@ class KVStore:
     def __init__(self, client: VaultClient, settings: Settings) -> None:
         self._client = client
         self._settings = settings
+
+    @contextmanager
+    def _kv_wrap(self):
+        """Context manager: map transport and auth errors from raw KV calls to VkError subclasses.
+
+        Catches:
+          - requests.exceptions.ConnectionError / Timeout → VaultNotRunning
+          - hvac.exceptions.Forbidden → VaultForbidden
+          All other exceptions propagate unchanged.
+        """
+        try:
+            yield
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            raise VaultNotRunning(
+                "Vault is not running",
+                hint="run `vk up`",
+            ) from e
+        except hvac.exceptions.Forbidden as e:
+            raise VaultForbidden(
+                "Authentication failed or token expired",
+                hint="run `vk login`",
+            ) from e
 
     def _split(self, user_path: str) -> tuple[str, str]:
         """Split user-supplied path into (mount_point, kv_path)."""
@@ -67,11 +91,12 @@ class KVStore:
             "notes": notes,
             "tags": tags if tags is not None else [],
         }
-        self._client.raw.secrets.kv.v2.create_or_update_secret(
-            path=kv_path,
-            mount_point=mount,
-            secret=secret,
-        )
+        with self._kv_wrap():
+            self._client.raw.secrets.kv.v2.create_or_update_secret(
+                path=kv_path,
+                mount_point=mount,
+                secret=secret,
+            )
 
     def get(self, path: str) -> dict[str, Any]:
         """Retrieve a secret dict at path.
@@ -81,11 +106,12 @@ class KVStore:
         """
         mount, kv_path = self._split(path)
         try:
-            response = self._client.raw.secrets.kv.v2.read_secret_version(
-                path=kv_path,
-                mount_point=mount,
-                raise_on_deleted_version=True,
-            )
+            with self._kv_wrap():
+                response = self._client.raw.secrets.kv.v2.read_secret_version(
+                    path=kv_path,
+                    mount_point=mount,
+                    raise_on_deleted_version=True,
+                )
         except hvac.exceptions.InvalidPath:
             raise VaultInvalidPath(path)
         if response is None:
@@ -100,10 +126,11 @@ class KVStore:
         """
         mount, kv_path = self._split(path)
         try:
-            response = self._client.raw.secrets.kv.v2.list_secrets(
-                path=kv_path,
-                mount_point=mount,
-            )
+            with self._kv_wrap():
+                response = self._client.raw.secrets.kv.v2.list_secrets(
+                    path=kv_path,
+                    mount_point=mount,
+                )
             return response.get("data", {}).get("keys", [])
         except hvac.exceptions.InvalidPath:
             return []
@@ -116,27 +143,31 @@ class KVStore:
         """
         mount, kv_path = self._split(path)
         if not permanent:
-            self._client.raw.secrets.kv.v2.delete_latest_version_of_secret(
-                path=kv_path,
-                mount_point=mount,
-            )
+            with self._kv_wrap():
+                self._client.raw.secrets.kv.v2.delete_latest_version_of_secret(
+                    path=kv_path,
+                    mount_point=mount,
+                )
         else:
             # Get current version to destroy
             try:
-                response = self._client.raw.secrets.kv.v2.read_secret_version(
-                    path=kv_path,
-                    mount_point=mount,
-                    raise_on_deleted_version=False,
-                )
+                with self._kv_wrap():
+                    response = self._client.raw.secrets.kv.v2.read_secret_version(
+                        path=kv_path,
+                        mount_point=mount,
+                        raise_on_deleted_version=False,
+                    )
                 version = response["data"]["metadata"]["version"]
             except (hvac.exceptions.InvalidPath, KeyError, TypeError):
                 version = 1
-            self._client.raw.secrets.kv.v2.destroy_secret_versions(
-                path=kv_path,
-                versions=[version],
-                mount_point=mount,
-            )
-            self._client.raw.secrets.kv.v2.delete_metadata_and_all_versions(
-                path=kv_path,
-                mount_point=mount,
-            )
+            with self._kv_wrap():
+                self._client.raw.secrets.kv.v2.destroy_secret_versions(
+                    path=kv_path,
+                    versions=[version],
+                    mount_point=mount,
+                )
+            with self._kv_wrap():
+                self._client.raw.secrets.kv.v2.delete_metadata_and_all_versions(
+                    path=kv_path,
+                    mount_point=mount,
+                )
