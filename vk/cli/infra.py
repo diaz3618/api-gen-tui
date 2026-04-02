@@ -26,10 +26,11 @@ def up() -> None:
             for _ in range(60):  # 60 retries × 1 s = 60 s timeout
                 time.sleep(1)
                 try:
-                    if not client.is_sealed():
-                        break  # already unsealed (rare — container re-used)
-                    if client.is_initialized():
-                        break  # initialized + sealed = need to unseal
+                    sealed = client.is_sealed()
+                    # Vault HTTP listener is up — break regardless of init/seal state
+                    # (fresh Vault: not initialized, sealed=True — that's fine, vault-init handles it)
+                    _ = sealed  # use value below for unseal decision
+                    break
                 except VaultNotRunning:
                     continue  # still starting
             else:

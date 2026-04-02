@@ -33,15 +33,25 @@ class VaultClient:
                 hint="run `vk login`",
             ) from e
 
+    def _health(self) -> dict:
+        """Return the Vault health dict.
+
+        hvac 2.x read_health_status(method='GET') returns a requests.Response object
+        (not a dict) because Vault uses non-200 status codes for sealed/uninitialized states.
+        This helper normalises both the real Response and dict returns from mocks.
+        """
+        response = self._wrap(self._client.sys.read_health_status, method="GET")
+        if hasattr(response, "json"):
+            return response.json()
+        return response  # already a dict (e.g. from unit-test mocks)
+
     def is_initialized(self) -> bool:
         """Return True if Vault is initialized."""
-        health = self._wrap(self._client.sys.read_health_status, method="GET")
-        return health.get("initialized", False)
+        return self._health().get("initialized", False)
 
     def is_sealed(self) -> bool:
         """Return True if Vault is sealed."""
-        health = self._wrap(self._client.sys.read_health_status, method="GET")
-        return health.get("sealed", True)
+        return self._health().get("sealed", True)
 
     def initialize(self, secret_shares: int = 1, secret_threshold: int = 1) -> dict:
         """Initialize Vault and return keys + root_token dict."""
@@ -53,8 +63,8 @@ class VaultClient:
 
     def unseal(self, key: str) -> None:
         """Unseal Vault using the provided key. No-op if already unsealed."""
-        status = self._wrap(self._client.sys.read_health_status, method="GET")
-        if not status.get("sealed", True):
+        health = self._health()
+        if not health.get("sealed", True):
             return  # already unsealed — no-op
         self._wrap(self._client.sys.submit_unseal_key, key=key)
 
