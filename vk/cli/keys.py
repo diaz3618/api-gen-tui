@@ -3,17 +3,27 @@ from __future__ import annotations
 import dataclasses
 from typing import Optional
 
+import pyperclip
 import typer
 from rich.panel import Panel
 
 from vk.config import Settings
 from vk.errors import GeneratorError, VkError
 from vk.generator.engine import GenerateOptions, generate as _generate
-from vk.output import console, print_error
+from vk.output import console, err_console, print_error
 from vk.vault.client import VaultClient
 from vk.vault.kv import KVStore
 
 MASK = "████████"
+
+
+def _copy_to_clipboard(key: str) -> None:
+    """Copy key to clipboard; silently swallow all exceptions on headless environments (UX-02)."""
+    try:
+        pyperclip.copy(key)
+        err_console.print("[dim]copied to clipboard[/dim]")  # stderr only (D-06, D-11)
+    except Exception:
+        pass  # Silent failure on headless/CI/SSH (D-06, UX-02) — no output, no crash
 
 
 def generate(
@@ -69,14 +79,20 @@ def generate(
         alphabet=alphabet,
     )
     try:
-        keys = []
+        last_key: str | None = None
+        generated_keys: list[str] = []
         for _ in range(count):
             key = _generate(opts)
             typer.echo(key)
-            keys.append(key)
+            last_key = key
+            generated_keys.append(key)
     except GeneratorError as e:
         print_error(e)
         raise typer.Exit(1)
+
+    # Clipboard copy of last key only (D-07, UX-02) — outside the try block
+    if last_key is not None:
+        _copy_to_clipboard(last_key)
 
     if store_path:
         try:
@@ -86,13 +102,13 @@ def generate(
             if count == 1:
                 kv.put(
                     store_path,
-                    keys[0],
+                    generated_keys[0],
                     format=opts.format,
                     prefix=opts.prefix,
                     options=dataclasses.asdict(opts),
                 )
             else:
-                for i, k in enumerate(keys, start=1):
+                for i, k in enumerate(generated_keys, start=1):
                     kv.put(
                         f"{store_path}-{i}",
                         k,

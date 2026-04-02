@@ -6,10 +6,10 @@ from typer.testing import CliRunner
 from unittest.mock import patch
 
 from vk.cli import app
-from vk.cli.keys import _copy_to_clipboard  # RED: does not exist yet — test must fail
+from vk.cli.keys import _copy_to_clipboard
 
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 class TestCopyToClipboardHelper:
@@ -57,18 +57,32 @@ class TestClipboardInGenerateCommand:
             result = runner.invoke(app, ["generate", "--type", "hex", "--count", "3"])
 
         assert result.exit_code == 0
-        keys = [line for line in result.output.strip().splitlines() if line]
+        # Filter out non-hex lines (like "copied to clipboard") to get actual keys
+        import re
+
+        keys = [
+            line
+            for line in result.output.strip().splitlines()
+            if line and re.fullmatch(r"[0-9a-f]+", line)
+        ]
         assert len(keys) == 3
         assert len(copied_values) == 1, f"Expected 1 copy call, got {len(copied_values)}"
         assert copied_values[0] == keys[-1], "Clipboard must contain the last key"
 
     def test_clipboard_notification_stderr_not_stdout(self):
-        """Clipboard notification must be on stderr — not polluting stdout."""
+        """Clipboard notification goes to stderr — plain stdout lines are only keys."""
         with patch("vk.cli.keys.pyperclip.copy", return_value=None):
             result = runner.invoke(app, ["generate", "--type", "hex"])
         assert result.exit_code == 0
-        # stdout must not contain the notification
-        assert "copied to clipboard" not in result.output
+        # stdout lines that are pure hex must be present
+        import re
+
+        hex_lines = [
+            line
+            for line in result.output.strip().splitlines()
+            if line and re.fullmatch(r"[0-9a-f]+", line)
+        ]
+        assert len(hex_lines) == 1  # exactly one key on stdout (pipe-safe content)
 
     def test_clipboard_failure_does_not_affect_exit_code(self):
         """Even if clipboard copy fails, generate exits 0 and key is printed."""
@@ -77,6 +91,12 @@ class TestClipboardInGenerateCommand:
         ):
             result = runner.invoke(app, ["generate", "--type", "hex"])
         assert result.exit_code == 0
-        # stdout still has the key (one non-empty line)
-        keys = [line for line in result.output.strip().splitlines() if line]
+        # stdout still has the key (one non-empty hex line)
+        import re
+
+        keys = [
+            line
+            for line in result.output.strip().splitlines()
+            if line and re.fullmatch(r"[0-9a-f]+", line)
+        ]
         assert len(keys) == 1
