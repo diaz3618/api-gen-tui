@@ -36,6 +36,8 @@ def _dispatch(cmd, args: list[str]) -> bool:
     Catches click.UsageError and SystemExit — never lets them escape (D-02).
     Broad except Exception guard ensures hvac/transport errors don't crash the loop (UX-01).
     """
+    if not args or not args[0].strip():
+        return True  # empty / whitespace-only input — skip silently
     if args[0] in ("exit", "quit"):
         return False  # D-04: exit/quit keywords terminate the REPL
     try:

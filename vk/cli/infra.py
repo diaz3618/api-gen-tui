@@ -16,7 +16,7 @@ from vk.vault.init import VaultInitializer
 
 def up() -> None:
     """Start Vault, wait until ready, then auto-unseal."""
-    settings = Settings()
+    settings = Settings.load()
     manager = ComposeManager(settings)
     client = VaultClient(settings, token=settings.vault_root_token or None)
     try:
@@ -76,7 +76,7 @@ def status() -> None:
     """Display Vault health, seal state, KV mount, and Docker container state."""
     from rich.table import Table
 
-    settings = Settings()
+    settings = Settings.load()
     manager = ComposeManager(settings)
 
     # Gather state defensively — never crash
@@ -132,7 +132,7 @@ def status() -> None:
 
 def vault_init() -> None:
     """Initialize Vault and write credentials to .env (idempotent)."""
-    settings = Settings()
+    settings = Settings.load()
     initializer = VaultInitializer()
     client = VaultClient(settings, token=None)
     try:
@@ -191,7 +191,7 @@ def login(
     import stat
     from pathlib import Path
 
-    settings = Settings()
+    settings = Settings.load()
     effective = token or settings.effective_token()
 
     try:

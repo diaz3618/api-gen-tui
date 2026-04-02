@@ -204,15 +204,13 @@ def test_delete_permanent_calls_destroy_then_delete_metadata(kv_store):
     mock_hvac.secrets.kv.v2.delete_latest_version_of_secret.assert_not_called()
 
 
-def test_delete_permanent_falls_back_to_version_1_on_error(kv_store):
+def test_delete_permanent_raises_invalid_path_if_not_found(kv_store):
+    """TD-5 fix: permanent delete on a non-existent path raises VaultInvalidPath (not silent destroy)."""
     kv, mock_hvac = kv_store
     mock_hvac.secrets.kv.v2.read_secret_version.side_effect = hvac.exceptions.InvalidPath("gone")
-    kv.delete("kv/api-keys/stripe/prod", permanent=True)
-    mock_hvac.secrets.kv.v2.destroy_secret_versions.assert_called_once_with(
-        path="api-keys/stripe/prod",
-        versions=[1],
-        mount_point="kv",
-    )
+    with pytest.raises(VaultInvalidPath):
+        kv.delete("kv/api-keys/stripe/prod", permanent=True)
+    mock_hvac.secrets.kv.v2.destroy_secret_versions.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -277,3 +275,23 @@ def test_get_forbidden_raises_vault_forbidden(kv_store):
     )
     with pytest.raises(VaultForbidden):
         kv.get("kv/api-keys/stripe/prod")
+
+
+# ---------------------------------------------------------------------------
+# Nyquist gap: delete(permanent=True) with malformed metadata response
+# ---------------------------------------------------------------------------
+
+
+def test_delete_permanent_uses_version_1_when_metadata_key_missing(kv_store):
+    """TD-5: If read_secret_version response lacks metadata.version key, fall back to version 1."""
+    kv, mock_hvac = kv_store
+    # Response exists but 'version' key is missing — triggers KeyError
+    mock_hvac.secrets.kv.v2.read_secret_version.return_value = {
+        "data": {"metadata": {}}  # no 'version' key
+    }
+    kv.delete("kv/api-keys/stripe/prod", permanent=True)
+    mock_hvac.secrets.kv.v2.destroy_secret_versions.assert_called_once_with(
+        path="api-keys/stripe/prod",
+        versions=[1],
+        mount_point="kv",
+    )

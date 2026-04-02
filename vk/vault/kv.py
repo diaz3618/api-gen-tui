@@ -158,7 +158,9 @@ class KVStore:
                         raise_on_deleted_version=False,
                     )
                 version = response["data"]["metadata"]["version"]
-            except (hvac.exceptions.InvalidPath, KeyError, TypeError):
+            except hvac.exceptions.InvalidPath:
+                raise VaultInvalidPath(path)
+            except (KeyError, TypeError):
                 version = 1
             with self._kv_wrap():
                 self._client.raw.secrets.kv.v2.destroy_secret_versions(

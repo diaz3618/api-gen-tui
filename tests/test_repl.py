@@ -131,3 +131,19 @@ class TestDispatchBroadExceptionGuard:
         with patch.object(cmd, "main", side_effect=requests.exceptions.ConnectionError("down")):
             result = _dispatch(cmd, ["get", "kv/x"])
         assert result is True
+
+
+class TestDispatchEmptyInput:
+    """Nyquist gap: _dispatch() with empty / whitespace-only input must not crash."""
+
+    def test_dispatch_empty_input_returns_true(self):
+        """Empty token list (user pressed Enter on blank line) keeps the loop running."""
+        cmd = _get_cmd()
+        result = _dispatch(cmd, [])
+        assert result is True
+
+    def test_dispatch_whitespace_only_returns_true(self):
+        """A single whitespace-only token keeps the loop running."""
+        cmd = _get_cmd()
+        result = _dispatch(cmd, ["   "])
+        assert result is True

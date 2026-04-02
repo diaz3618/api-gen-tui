@@ -208,3 +208,71 @@ def test_export_unknown_format_exits_1():
         result = runner.invoke(app, ["export", "kv/api-keys", "--format", "yaml"])
     assert result.exit_code == 1
     assert "yaml" in result.output or "yaml" in (result.stderr if hasattr(result, "stderr") else "")
+
+
+# ---------------------------------------------------------------------------
+# TD-3 fix: _collect_secrets() warns on unreadable secrets (not silent)
+# ---------------------------------------------------------------------------
+
+
+def test_collect_secrets_warns_on_vault_error(capsys):
+    """TD-3 fix: unreadable secrets produce a stderr warning, not silent skip."""
+    from vk.cli.keys import _collect_secrets
+    from vk.errors import VaultInvalidPath
+    from unittest.mock import MagicMock
+
+    mock_kv = MagicMock()
+    mock_kv.list.return_value = ["broken-key"]
+    mock_kv.get.side_effect = VaultInvalidPath("kv/api-keys/broken-key")
+
+    accumulated = {}
+    _collect_secrets(mock_kv, "kv/api-keys", accumulated)
+
+    # Secret was not added to accumulated
+    assert len(accumulated) == 0
+
+    # Warning was emitted to stderr
+    captured = capsys.readouterr()
+    assert "warning" in captured.err.lower() or "warning" in captured.out.lower()
+
+
+def test_collect_secrets_warns_on_unexpected_exception(capsys):
+    """TD-3 fix: unexpected exceptions also produce a stderr warning, not silent skip."""
+    from vk.cli.keys import _collect_secrets
+    from unittest.mock import MagicMock
+
+    mock_kv = MagicMock()
+    mock_kv.list.return_value = ["flaky-key"]
+    mock_kv.get.side_effect = RuntimeError("unexpected")
+
+    accumulated = {}
+    _collect_secrets(mock_kv, "kv/api-keys", accumulated)
+
+    assert len(accumulated) == 0
+    captured = capsys.readouterr()
+    assert "warning" in captured.err.lower() or "warning" in captured.out.lower()
+
+
+def test_collect_secrets_continues_after_error():
+    """_collect_secrets() must continue processing remaining keys after one fails."""
+    from vk.cli.keys import _collect_secrets
+    from vk.errors import VaultInvalidPath
+    from unittest.mock import MagicMock
+
+    mock_kv = MagicMock()
+    mock_kv.list.return_value = ["broken-key", "good-key"]
+    good_secret = _make_secret("sk_good")
+
+    def get_side_effect(path):
+        if "broken" in path:
+            raise VaultInvalidPath(path)
+        return good_secret
+
+    mock_kv.get.side_effect = get_side_effect
+
+    accumulated = {}
+    _collect_secrets(mock_kv, "kv/api-keys", accumulated)
+
+    # Only the good key was collected
+    assert len(accumulated) == 1
+    assert any("good-key" in k for k in accumulated.keys())

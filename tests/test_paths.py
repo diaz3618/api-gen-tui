@@ -1,20 +1,6 @@
 import pytest
-from vk.vault.paths import PathBuilder, canonicalize_path
-
-
-def test_path_builder_default_prefix():
-    pb = PathBuilder()
-    assert pb.build("stripe", "prod") == "api-keys/stripe/prod"
-
-
-def test_path_builder_custom_prefix():
-    pb = PathBuilder(prefix="secrets")
-    assert pb.build("stripe", "prod") == "secrets/stripe/prod"
-
-
-def test_path_builder_empty_prefix():
-    pb = PathBuilder()
-    assert pb.build("stripe", "prod", prefix="") == "stripe/prod"
+from vk.errors import VaultInvalidPath
+from vk.vault.paths import canonicalize_path
 
 
 def test_canonicalize_path_with_mount():
@@ -37,3 +23,26 @@ def test_canonicalize_path_strips_trailing_slash():
 def test_canonicalize_path_no_mount_uses_default():
     mount, path = canonicalize_path("api-keys/stripe/prod")
     assert mount == "kv"
+
+
+def test_canonicalize_path_bare_mount_raises():
+    """TD-4: bare mount name alone must raise VaultInvalidPath, not return ('kv', 'kv')."""
+    with pytest.raises(VaultInvalidPath):
+        canonicalize_path("kv")
+
+
+def test_canonicalize_path_empty_raises():
+    """Empty path must raise VaultInvalidPath."""
+    with pytest.raises(VaultInvalidPath):
+        canonicalize_path("")
+
+
+def test_canonicalize_path_secret_mount():
+    mount, path = canonicalize_path("secret/my-key/prod")
+    assert mount == "secret"
+    assert path == "my-key/prod"
+
+
+def test_canonicalize_path_bare_secret_mount_raises():
+    with pytest.raises(VaultInvalidPath):
+        canonicalize_path("secret")

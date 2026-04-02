@@ -284,3 +284,27 @@ def test_delete_invalid_path_exits_1():
     ):
         result = runner.invoke(app, ["delete", "kv/api-keys/stripe/prod"])
     assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# generate --count --store path naming (Nyquist gap)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_count_store_names_with_suffix():
+    """generate --count 2 --store path must call kv.put with path-1 and path-2."""
+    mock_kv = MagicMock()
+    with (
+        patch("vk.cli.keys.KVStore", return_value=mock_kv),
+        patch("vk.cli.keys.VaultClient"),
+        patch("vk.cli.keys.Settings"),
+    ):
+        result = runner.invoke(
+            app,
+            ["generate", "--type", "hex", "--count", "2", "--store", "kv/api-keys/batch"],
+        )
+    assert result.exit_code == 0
+    assert mock_kv.put.call_count == 2
+    paths_called = [call.args[0] for call in mock_kv.put.call_args_list]
+    assert "kv/api-keys/batch-1" in paths_called
+    assert "kv/api-keys/batch-2" in paths_called

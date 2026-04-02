@@ -28,6 +28,8 @@ status:
 ## Run unit tests
 test:
 	uv run pytest tests/ -v
+	# NOTE: do NOT run `python -m pytest` directly — system Python may lack vk deps.
+	# Use `uv run pytest` (this target) or `.venv/bin/python -m pytest` explicitly.
 
 ## Install vk in development mode (creates .venv, installs deps)
 install:

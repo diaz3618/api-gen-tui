@@ -1,30 +1,8 @@
 from __future__ import annotations
 
+from vk.errors import VaultInvalidPath
 
-class PathBuilder:
-    """Construct canonical Vault KV v2 paths.
-
-    Convention: mount_point="kv", path="api-keys/<service>/<name>"
-    Never include mount point in the path — hvac takes them separately.
-    """
-
-    def __init__(self, prefix: str = "api-keys") -> None:
-        self.prefix = prefix.strip("/")
-
-    def build(self, service: str, name: str, prefix: str | None = None) -> str:
-        """Build the KV path (without mount point) for a key.
-
-        Args:
-            service: Service name (e.g. "stripe")
-            name: Key name (e.g. "production")
-            prefix: Override default prefix. Pass "" to disable prefix.
-
-        Returns:
-            str: e.g. "api-keys/stripe/production"
-        """
-        effective_prefix = self.prefix if prefix is None else prefix.strip("/")
-        parts = [p for p in [effective_prefix, service.strip("/"), name.strip("/")] if p]
-        return "/".join(parts)
+_KNOWN_MOUNTS = {"kv", "secret", "cubbyhole"}
 
 
 def canonicalize_path(user_path: str) -> tuple[str, str]:
@@ -35,13 +13,23 @@ def canonicalize_path(user_path: str) -> tuple[str, str]:
         "api-keys/stripe/prod"     → ("kv", "api-keys/stripe/prod")   # assumes default mount
         "/api-keys/stripe/prod"    → ("kv", "api-keys/stripe/prod")   # strips leading slash
 
+    Raises:
+        VaultInvalidPath: If path resolves to a bare mount point with no sub-path
+                          (e.g. "kv" alone), which would silently produce an incorrect query.
+
     Returns:
         Tuple of (mount_point, path_within_mount) — both without leading/trailing slashes.
     """
     cleaned = user_path.strip("/")
+    if not cleaned:
+        raise VaultInvalidPath(user_path, hint="Provide a full path, e.g. kv/api-keys/stripe/prod")
     parts = cleaned.split("/", 1)
-    # If first segment looks like a known mount point (single word, no dots), split it off
-    known_mounts = {"kv", "secret", "cubbyhole"}
-    if len(parts) > 1 and parts[0] in known_mounts:
+    # If first segment is a known mount point, split it off — but require a sub-path
+    if parts[0] in _KNOWN_MOUNTS:
+        if len(parts) < 2 or not parts[1]:
+            raise VaultInvalidPath(
+                user_path,
+                hint=f"'{parts[0]}' is a mount point — provide a sub-path, e.g. {parts[0]}/api-keys/stripe/prod",
+            )
         return parts[0], parts[1]
     return "kv", cleaned

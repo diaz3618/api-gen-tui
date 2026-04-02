@@ -252,7 +252,10 @@ def export(
 
 
 def _collect_secrets(kv: KVStore, base_path: str, accumulated: dict) -> None:
-    """Recursively collect all leaf secrets under base_path into accumulated dict."""
+    """Recursively collect all leaf secrets under base_path into accumulated dict.
+
+    Unreadable secrets are skipped with a warning to stderr rather than silently dropped.
+    """
     keys = kv.list(base_path)
     for key in keys:
         child_path = base_path.rstrip("/") + "/" + key.rstrip("/")
@@ -262,5 +265,7 @@ def _collect_secrets(kv: KVStore, base_path: str, accumulated: dict) -> None:
             try:
                 secret = kv.get(child_path)
                 accumulated[child_path] = secret
-            except Exception:
-                pass  # skip unreadable secrets silently
+            except VkError as e:
+                err_console.print(f"[yellow]warning:[/yellow] skipping {child_path}: {e.message}")
+            except Exception as e:
+                err_console.print(f"[yellow]warning:[/yellow] skipping {child_path}: {e}")
