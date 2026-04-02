@@ -224,7 +224,7 @@ def test_list_shows_tree_with_keys():
         patch("vk.cli.keys.VaultClient"),
         patch("vk.cli.keys.Settings"),
     ):
-        result = runner.invoke(app, ["list-keys", "kv/api-keys"])
+        result = runner.invoke(app, ["list", "kv/api-keys"])
     assert result.exit_code == 0
     assert "stripe" in result.output
     assert "github" in result.output
@@ -238,7 +238,7 @@ def test_list_empty_shows_no_keys_found():
         patch("vk.cli.keys.VaultClient"),
         patch("vk.cli.keys.Settings"),
     ):
-        result = runner.invoke(app, ["list-keys", "kv/api-keys"])
+        result = runner.invoke(app, ["list", "kv/api-keys"])
     assert result.exit_code == 0
     assert "No keys found" in result.output
 

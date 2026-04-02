@@ -9,10 +9,24 @@ app = typer.Typer(
     pretty_exceptions_enable=False,
 )
 
-# Register infrastructure commands
-for cmd in [infra.up, infra.down, infra.status, infra.vault_init, infra.login]:
-    app.command()(cmd)
+# Infrastructure commands — explicit names prevent auto-conversion surprises
+app.command()(infra.up)
+app.command()(infra.down)
+app.command()(infra.status)
+app.command(name="vault-init")(infra.vault_init)  # explicit: underscore→hyphen made safe
+app.command()(infra.login)
 
-# Register key management commands
-for cmd in [keys.generate, keys.store, keys.get, keys.list_keys, keys.delete, keys.export]:
-    app.command()(cmd)
+# Key management commands
+app.command()(keys.generate)
+app.command()(keys.store)
+app.command()(keys.get)
+app.command(name="list")(keys.list_keys)  # FIX: was 'list-keys', D-03 requires 'list'
+app.command()(keys.delete)
+app.command()(keys.export)
+
+# UX commands (Phase 5) — imported after app definition to avoid circular imports
+from vk.cli.repl import repl  # noqa: E402
+from vk.cli.policy import policy  # noqa: E402
+
+app.command()(repl)
+app.command()(policy)
