@@ -30,32 +30,41 @@ def generate(
     type: str = typer.Option(
         "hex",
         "--type",
+        "-t",
         help="Key format: hex|base64|base64url|base32|alphanumeric|uuid4|ulid|url-safe|custom",
     ),
-    length: int = typer.Option(32, "--length", help="Total output length (prefix+random+suffix)"),
-    random_length: Optional[int] = typer.Option(
-        None, "--random-length", help="Explicit random portion length (overrides --length calc)"
+    length: int = typer.Option(
+        32, "--length", "-l", help="Total output length (prefix+random+suffix)"
     ),
-    prefix: str = typer.Option("", "--prefix", help="Fixed string prepended to key"),
-    suffix: str = typer.Option("", "--suffix", help="Fixed string appended to key"),
-    separator: str = typer.Option("_", "--separator", help="Separator char for --group"),
+    random_length: Optional[int] = typer.Option(
+        None,
+        "--random-length",
+        "-L",
+        help="Explicit random portion length (overrides --length calc)",
+    ),
+    prefix: str = typer.Option("", "--prefix", "-p", help="Fixed string prepended to key"),
+    suffix: str = typer.Option("", "--suffix", "-x", help="Fixed string appended to key"),
+    separator: str = typer.Option("_", "--separator", "-d", help="Separator char for --group"),
     group: Optional[int] = typer.Option(
-        None, "--group", help="Split random portion into chunks of N"
+        None, "--group", "-g", help="Split random portion into chunks of N"
     ),
     no_ambiguous: bool = typer.Option(False, "--no-ambiguous", help="Remove 0,O,1,l,I from output"),
     min_upper: int = typer.Option(0, "--min-upper", help="Minimum uppercase characters"),
     min_lower: int = typer.Option(0, "--min-lower", help="Minimum lowercase characters"),
     min_digits: int = typer.Option(0, "--min-digits", help="Minimum digit characters"),
     min_symbols: int = typer.Option(0, "--min-symbols", help="Minimum symbol characters"),
-    upper: bool = typer.Option(False, "--upper", help="Force all uppercase"),
+    upper: bool = typer.Option(False, "--upper", "-u", help="Force all uppercase"),
     lower: bool = typer.Option(False, "--lower", help="Force all lowercase"),
-    entropy: bool = typer.Option(False, "--entropy", help="Print entropy estimate to stderr"),
-    count: int = typer.Option(1, "--count", help="Number of keys to generate"),
+    entropy: bool = typer.Option(False, "--entropy", "-e", help="Print entropy estimate to stderr"),
+    count: int = typer.Option(1, "--count", "-n", help="Number of keys to generate"),
     alphabet: Optional[str] = typer.Option(
-        None, "--alphabet", help="Custom alphabet for --type custom"
+        None, "--alphabet", "-a", help="Custom alphabet for --type custom"
     ),
     store_path: Optional[str] = typer.Option(
-        None, "--store", help="Vault path to store the generated key (e.g. kv/api-keys/stripe/prod)"
+        None,
+        "--store",
+        "-s",
+        help="Vault path to store the generated key (e.g. kv/api-keys/stripe/prod)",
     ),
 ) -> None:
     """Generate a cryptographically secure API key or token."""
@@ -124,8 +133,8 @@ def generate(
 def store(
     path: str = typer.Argument(..., help="Vault path e.g. kv/api-keys/stripe/prod"),
     value: str = typer.Argument(..., help="Secret value to store"),
-    notes: str = typer.Option("", "--notes", help="Optional annotation"),
-    tags: str = typer.Option("", "--tags", help="Comma-separated tags"),
+    notes: str = typer.Option("", "--notes", "-n", help="Optional annotation"),
+    tags: str = typer.Option("", "--tags", "-t", help="Comma-separated tags"),
 ) -> None:
     """Store an externally supplied token in Vault at PATH."""
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
@@ -142,7 +151,7 @@ def store(
 
 def get(
     path: str = typer.Argument(..., help="Vault path to retrieve"),
-    reveal: bool = typer.Option(False, "--reveal", help="Show plaintext value"),
+    reveal: bool = typer.Option(False, "--reveal", "-r", help="Show plaintext value"),
 ) -> None:
     """Retrieve a secret from Vault at PATH (masked by default)."""
     try:
@@ -192,7 +201,9 @@ def list_keys(
 
 def delete(
     path: str = typer.Argument(..., help="Vault path to delete"),
-    permanent: bool = typer.Option(False, "--permanent", help="Permanently destroy all versions"),
+    permanent: bool = typer.Option(
+        False, "--permanent", "-p", help="Permanently destroy all versions"
+    ),
 ) -> None:
     """Delete a secret at PATH (soft delete by default; --permanent is irrecoverable)."""
     try:
@@ -216,7 +227,7 @@ def delete(
 
 def export(
     path: str = typer.Argument(..., help="Vault path prefix to export from"),
-    format: str = typer.Option("json", "--format", help="Output format: json or dotenv"),
+    format: str = typer.Option("json", "--format", "-f", help="Output format: json or dotenv"),
 ) -> None:
     """Export secrets from Vault as JSON or dotenv format."""
     import json

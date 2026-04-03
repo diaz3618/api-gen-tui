@@ -7,6 +7,7 @@ app = typer.Typer(
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_enable=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 # Infrastructure commands — explicit names prevent auto-conversion surprises

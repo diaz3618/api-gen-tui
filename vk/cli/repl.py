@@ -26,7 +26,40 @@ _VK_COMMANDS = [
     "vault-init",
     "login",
     "policy",
+    "help",
+    "exit",
 ]
+
+# Command descriptions shown by the help command
+_COMMAND_HELP = [
+    ("generate", "Generate a cryptographically secure API key or token"),
+    ("store", "Store an externally supplied secret in Vault"),
+    ("get", "Retrieve a secret from Vault (masked by default)"),
+    ("list", "List secrets under a Vault path"),
+    ("delete", "Delete a secret (soft delete; --permanent to destroy)"),
+    ("export", "Export secrets as JSON or dotenv format"),
+    ("up", "Start the Vault Docker container and auto-unseal"),
+    ("down", "Stop the Vault Docker container"),
+    ("status", "Show Vault health, seal state, and Docker status"),
+    ("vault-init", "Initialize Vault and write credentials to .env"),
+    ("login", "Authenticate and store token at ~/.vk/token"),
+    ("policy", "Emit a Vault HCL password policy from a preset"),
+    ("help", "Show this help message"),
+    ("exit", "Exit the REPL (also: quit, Ctrl+D)"),
+]
+
+
+def _print_help() -> None:
+    """Print available REPL commands in a formatted table."""
+    from rich.table import Table
+
+    table = Table(show_header=False, box=None, padding=(0, 2))
+    table.add_column("Command", style="cyan", no_wrap=True)
+    table.add_column("Description", style="")
+    for name, desc in _COMMAND_HELP:
+        table.add_row(name, desc)
+    console.print(table)
+    console.print("[dim]Tip: type [cyan]<command> --help[/cyan] for full flag reference[/dim]")
 
 
 def _dispatch(cmd, args: list[str]) -> bool:
@@ -40,6 +73,9 @@ def _dispatch(cmd, args: list[str]) -> bool:
         return True  # empty / whitespace-only input — skip silently
     if args[0] in ("exit", "quit"):
         return False  # D-04: exit/quit keywords terminate the REPL
+    if args[0] in ("help", "h", "?"):
+        _print_help()
+        return True
     try:
         # standalone_mode=False: returns int on typer.Exit, raises click.UsageError on bad args
         # — does NOT call sys.exit() (D-02, pitfall 1)
@@ -68,8 +104,9 @@ def repl() -> None:
         complete_while_typing=True,
     )
 
-    # Agent discretion: minimal banner (CONTEXT.md §the agent's Discretion)
-    console.print("[bold]vk[/bold] — type [dim]exit[/dim] to quit, [dim]Ctrl+D[/dim] to exit")
+    console.print(
+        "[bold]vk[/bold] — type [cyan]help[/cyan] for commands, [dim]exit[/dim] to quit, [dim]Ctrl+D[/dim] to exit"
+    )
 
     while True:
         try:

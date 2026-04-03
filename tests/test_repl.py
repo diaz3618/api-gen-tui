@@ -39,11 +39,13 @@ class TestVkCommandsList:
             "vault-init",
             "login",
             "policy",
+            "help",
+            "exit",
         }
         assert set(_VK_COMMANDS) == expected
 
     def test_commands_list_length(self):
-        assert len(_VK_COMMANDS) == 12
+        assert len(_VK_COMMANDS) == 14
 
 
 class TestDispatchHelper:
