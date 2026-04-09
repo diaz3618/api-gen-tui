@@ -84,7 +84,7 @@ jobs:
         fi
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: api-gen-tui-${{ matrix.os }}-${{ matrix.arch }}
         path: api-gen-tui-*
